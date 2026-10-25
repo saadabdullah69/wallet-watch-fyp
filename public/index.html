@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wallet Watch</title>
+<style>
+  :root {
+    --paper: #eef1ef; --card: #ffffff; --ink: #17222b; --muted: #5d6b73; --line: #cfd7d3;
+    --accent: #0f5c63; --accent-ink: #ffffff; --signal: #c77d0a; --danger: #a4262c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --paper: #101a20; --card: #17252d; --ink: #e6edf0; --muted: #93a4ad; --line: #2b3d47;
+            --accent: #5fb8c0; --accent-ink: #0b1a1e; --signal: #f0a63a; --danger: #ff8a8f; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 24px; border-bottom: 1px solid var(--line); }
+  h1 { margin: 0; font-size: 20px; font-weight: 650; letter-spacing: -0.01em; }
+  h2 { margin: 0 0 12px; font-size: 16px; font-weight: 650; }
+  main { display: grid; grid-template-columns: minmax(280px, 380px) 1fr; gap: 24px; padding: 24px; max-width: 1200px; margin: 0 auto; }
+  @media (max-width: 800px) { main { grid-template-columns: 1fr; padding: 16px; } }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 18px; margin-bottom: 20px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
+  input[type=text], input[type=number] { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); font: inherit; }
+  .types { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 4px; }
+  .types label { display: flex; gap: 6px; align-items: center; margin: 0; color: var(--ink); font-size: 14px; }
+  button, .btn { font: inherit; padding: 7px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; text-decoration: none; display: inline-block; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); margin-top: 14px; }
+  button.link { border: 0; background: none; color: var(--danger); padding: 2px 4px; }
+  button:focus-visible, input:focus-visible, .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .bell { display: flex; align-items: center; gap: 8px; }
+  .badge { min-width: 26px; text-align: center; padding: 1px 8px; border-radius: 99px; background: var(--line); font-variant-numeric: tabular-nums; font-weight: 650; }
+  .badge.has { background: var(--signal); color: #1b1200; }
+  .error { color: var(--danger); font-size: 13px; min-height: 18px; margin-top: 8px; }
+  .wallet { padding: 10px 0; border-top: 1px solid var(--line); }
+  .wallet:first-of-type { border-top: 0; }
+  .wallet .name { font-weight: 600; }
+  .wallet .meta, .alert .meta { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+  .row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .toolbar .grow { flex: 1; }
+  .alert { display: grid; grid-template-columns: 14px 1fr; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); cursor: pointer; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 8px; background: transparent; }
+  .alert.unread .dot { background: var(--signal); }
+  .alert.unread .msg { font-weight: 600; }
+  .empty { color: var(--muted); padding: 8px 0; }
+  .stats { display: flex; flex-wrap: wrap; gap: 28px; margin-bottom: 8px; }
+  .stats b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
+  table { border-collapse: collapse; font-size: 14px; margin-top: 6px; }
+  td, th { text-align: left; padding: 3px 18px 3px 0; font-variant-numeric: tabular-nums; }
+  #toast { position: fixed; right: 16px; bottom: 16px; background: var(--ink); color: var(--paper); padding: 10px 14px; border-radius: 8px; max-width: 320px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  #toast.show { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) { #toast { transition: none; } }
+  /* ---- Filter-edit modal ---- */
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: flex-end; justify-content: center; z-index: 100; }
+  .overlay.open { display: flex; }
+  .modal { background: var(--card); border: 1px solid var(--line); border-radius: 12px 12px 0 0; padding: 24px; width: 100%; max-width: 480px; max-height: 80vh; overflow-y: auto; animation: slideUp .22s ease; }
+  @keyframes slideUp { from { transform: translateY(60px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .modal h3 { margin: 0 0 4px; font-size: 17px; font-weight: 650; }
+  .modal .sub { color: var(--muted); font-size: 13px; margin: 0 0 16px; overflow-wrap: anywhere; }
+  .modal-actions { display: flex; gap: 10px; margin-top: 18px; justify-content: flex-end; }
+  .modal-actions button.primary { margin-top: 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Wallet Watch</h1>
+  <div class="bell">Unread alerts <span id="badge" class="badge" aria-live="polite">0</span></div>
+</header>
+
+<main>
+  <div>
+    <section>
+      <h2>Add a wallet</h2>
+      <form id="addForm">
+        <label for="address">Wallet address</label>
+        <input id="address" type="text" placeholder="0x…" autocomplete="off" required>
+        <label for="label">Name (optional)</label>
+        <input id="label" type="text" placeholder="Whale #1" maxlength="60">
+        <label for="minUsd">Alert only above (USD)</label>
+        <input id="minUsd" type="number" min="0" step="any" placeholder="e.g. 50000">
+        <label for="tokens">Only these tokens (comma separated, optional)</label>
+        <input id="tokens" type="text" placeholder="USDC, WETH">
+        <label>Event types (none ticked = all)</label>
+        <div class="types">
+          <label><input type="checkbox" name="type" value="swap"> Swaps</label>
+          <label><input type="checkbox" name="type" value="transfer"> Transfers</label>
+          <label><input type="checkbox" name="type" value="pool_interaction"> Pool activity</label>
+        </div>
+        <button class="primary" type="submit">Add wallet</button>
+        <div id="formError" class="error" role="alert"></div>
+      </form>
+    </section>
+    <section>
+      <h2>Watching</h2>
+      <div id="wallets"></div>
+    </section>
+  </div>
+
+  <div>
+    <section>
+      <h2>Alerts</h2>
+      <div class="toolbar">
+        <label style="display:flex;gap:6px;align-items:center;margin:0;color:var(--ink)"><input type="checkbox" id="unreadOnly"> Unread only</label>
+        <span class="grow"></span>
+        <button id="markAll" type="button">Mark all read</button>
+        <a class="btn" href="/api/export.csv">Export CSV</a>
+        <a class="btn" href="/api/export.json">Export JSON</a>
+      </div>
+      <div id="alerts"></div>
+    </section>
+    <section>
+      <h2>Activity summary</h2>
+      <div id="summary"></div>
+    </section>
+  </div>
+</main>
+<div id="toast" role="status"></div>
+
+<!-- Filter-edit modal -->
+<div id="editOverlay" class="overlay" role="dialog" aria-modal="true" aria-labelledby="editTitle">
+  <div class="modal">
+    <h3 id="editTitle">Edit filters</h3>
+    <p class="sub" id="editAddr"></p>
+    <label for="editMinUsd">Alert only above (USD)</label>
+    <input id="editMinUsd" type="number" min="0" step="any" placeholder="e.g. 50000">
+    <label for="editMaxUsd">Alert only below (USD)</label>
+    <input id="editMaxUsd" type="number" min="0" step="any" placeholder="no limit">
+    <label for="editTokens">Only these tokens (comma separated)</label>
+    <input id="editTokens" type="text" placeholder="USDC, WETH — leave blank for all">
+    <label for="editBlockTokens">Never alert on these tokens (comma separated)</label>
+    <input id="editBlockTokens" type="text" placeholder="e.g. SHIB, PEPE">
+    <label>Event types (none ticked = all)</label>
+    <div class="types">
+      <label><input type="checkbox" name="editType" value="swap"> Swaps</label>
+      <label><input type="checkbox" name="editType" value="transfer"> Transfers</label>
+      <label><input type="checkbox" name="editType" value="pool_interaction"> Pool activity</label>
+    </div>
+    <div id="editError" class="error" role="alert"></div>
+    <div class="modal-actions">
+      <button id="editCancel" type="button">Cancel</button>
+      <button id="editSave" class="primary" type="button">Save filters</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+function h(tag, props = {}, ...kids) {
+  const el = Object.assign(document.createElement(tag), props);
+  for (const k of kids) el.append(k);
+  return el;
+}
+const usd = n => "$" + Math.round(n).toLocaleString("en-US");
+const short = a => a.slice(0, 6) + "…" + a.slice(-4);
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, { headers: { "Content-Type": "application/json" }, ...opts });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || r.statusText);
+  return data;
+}
+
+function filterText(f) {
+  const parts = [];
+  if (f.minUsd !== undefined) parts.push("above " + usd(f.minUsd));
+  if (f.maxUsd !== undefined) parts.push("below " + usd(f.maxUsd));
+  if (f.eventTypes) parts.push(f.eventTypes.join(", ").replace("pool_interaction", "pool"));
+  if (f.tokenAllow) parts.push("only " + f.tokenAllow.join(", "));
+  if (f.tokenBlock) parts.push("never " + f.tokenBlock.join(", "));
+  return parts.length ? parts.join(" · ") : "all activity";
+}
+
+async function loadWallets() {
+  const wallets = await api("/api/wallets");
+  const box = $("#wallets");
+  box.replaceChildren();
+  if (!wallets.length) box.append(h("div", { className: "empty", textContent: "No wallets yet. Add one to start receiving alerts." }));
+  for (const w of wallets) {
+    const remove = h("button", { className: "link", textContent: "Remove" });
+    remove.onclick = async () => { if (confirm("Stop watching " + w.label + "?")) { await api("/api/wallets/" + w.address, { method: "DELETE" }); refreshAll(); } };
+    const edit = h("button", { className: "link", textContent: "Edit filters", style: "color:var(--accent)" });
+    edit.onclick = () => openEditModal(w);
+        const rename = h("button", { className: "link", textContent: "Rename", style: "color:var(--accent)" });
+    rename.onclick = async () => {
+      const name = prompt("New name for this wallet:", w.label);
+      if (name === null || !name.trim()) return;
+      try {
+        await api("/api/wallets/" + w.address + "/label", { method: "PUT", body: JSON.stringify({ label: name.trim() }) });
+        toast("Name saved.");
+        loadWallets();
+      } catch (err) { toast(err.message); }
+    };
+    const csv = h("a", { href: "/api/export.csv?wallet=" + w.address, textContent: "CSV", style: "color:var(--accent);font-size:13px" });
+    box.append(h("div", { className: "wallet" },
+      h("div", { className: "row" }, h("span", { className: "name", textContent: w.label }), h("span", {}, csv, " ", rename, " ", edit, " ", remove)),
+      h("div", { className: "meta", textContent: w.address }),
+      h("div", { className: "meta", textContent: "Alerts: " + filterText(w.filter) })));
+  }
+}
+
+async function loadAlerts() {
+  const { items, unread } = await api("/api/notifications" + ($("#unreadOnly").checked ? "?unread=1" : ""));
+  setBadge(unread);
+  const box = $("#alerts");
+  box.replaceChildren();
+  if (!items.length) box.append(h("div", { className: "empty", textContent: "No alerts yet. They appear here as soon as a watched wallet matches your rules." }));
+  for (const n of items) box.append(alertRow(n));
+}
+
+function alertRow(n) {
+  const row = h("div", { className: "alert" + (n.read ? "" : " unread"), tabIndex: 0 },
+    h("span", { className: "dot" }),
+    h("div", {}, h("div", { className: "msg", textContent: n.message }),
+      h("div", { className: "meta", textContent: new Date(n.eventTime).toLocaleString() + " · tx " + short(n.txHash) })));
+  const mark = async () => { if (!n.read) { n.read = true; row.classList.remove("unread"); setBadge((await api("/api/notifications/read", { method: "POST", body: JSON.stringify({ id: n.id }) })).unread); } };
+  row.onclick = mark;
+  row.onkeydown = e => { if (e.key === "Enter") mark(); };
+  return row;
+}
+
+async function loadSummary() {
+  const s = await api("/api/summary");
+  const box = $("#summary");
+  box.replaceChildren();
+  box.append(h("div", { className: "stats" },
+    h("div", {}, h("b", { textContent: s.totalAlerts }), "alerts"),
+    h("div", {}, h("b", { textContent: usd(s.totalUsd) }), "total value")));
+  if (!s.totalAlerts) { box.append(h("div", { className: "empty", textContent: "Nothing to summarise yet." })); return; }
+  const table = (title, rows) => {
+    const t = h("table", {}, h("tr", {}, h("th", { textContent: title }), h("th", { textContent: "Alerts" }), h("th", { textContent: "Value" })));
+    for (const r of rows) t.append(h("tr", {}, h("td", { textContent: r.name }), h("td", { textContent: r.count }), h("td", { textContent: usd(r.usd) })));
+    return t;
+  };
+  box.append(table("Event type", s.byType), table("Token", s.byToken));
+}
+
+function setBadge(n) { const b = $("#badge"); b.textContent = n; b.classList.toggle("has", n > 0); }
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("show"), 4000); }
+const refreshAll = () => Promise.all([loadWallets(), loadAlerts(), loadSummary()]);
+
+// ---- Filter-edit modal ----
+let editAddress = "";
+function openEditModal(w) {
+  editAddress = w.address;
+  $("#editAddr").textContent = w.address;
+  const f = w.filter;
+  $("#editMinUsd").value = f.minUsd ?? "";
+  $("#editMaxUsd").value = f.maxUsd ?? "";
+  $("#editTokens").value = (f.tokenAllow ?? []).join(", ");
+  $("#editBlockTokens").value = (f.tokenBlock ?? []).join(", ");
+  document.querySelectorAll("input[name=editType]").forEach(cb => {
+    cb.checked = !!(f.eventTypes && f.eventTypes.includes(cb.value));
+  });
+  $("#editError").textContent = "";
+  $("#editOverlay").classList.add("open");
+  $("#editMinUsd").focus();
+}
+function closeEditModal() { $("#editOverlay").classList.remove("open"); editAddress = ""; }
+$("#editCancel").onclick = closeEditModal;
+$("#editOverlay").onclick = e => { if (e.target === $("#editOverlay")) closeEditModal(); };
+document.addEventListener("keydown", e => { if (e.key === "Escape" && $("#editOverlay").classList.contains("open")) closeEditModal(); });
+$("#editSave").onclick = async () => {
+  $("#editError").textContent = "";
+  const filter = {
+    minUsd: $("#editMinUsd").value,
+    maxUsd: $("#editMaxUsd").value,
+    tokenAllow: $("#editTokens").value.split(",").map(s => s.trim()).filter(Boolean),
+    tokenBlock: $("#editBlockTokens").value.split(",").map(s => s.trim()).filter(Boolean),
+    eventTypes: [...document.querySelectorAll("input[name=editType]:checked")].map(i => i.value),
+  };
+  try {
+    await api(`/api/wallets/${editAddress}/filter`, { method: "PUT", body: JSON.stringify(filter) });
+    toast("Filters saved.");
+    closeEditModal();
+    loadWallets();
+  } catch (err) { $("#editError").textContent = err.message; }
+};
+// ---- end modal ----
+
+$("#addForm").onsubmit = async e => {
+  e.preventDefault();
+  $("#formError").textContent = "";
+  const filter = {
+    minUsd: $("#minUsd").value,
+    tokenAllow: $("#tokens").value.split(",").map(s => s.trim()).filter(Boolean),
+    eventTypes: [...document.querySelectorAll("input[name=type]:checked")].map(i => i.value),
+  };
+  try {
+    await api("/api/wallets", { method: "POST", body: JSON.stringify({ address: $("#address").value.trim(), label: $("#label").value, filter }) });
+    e.target.reset();
+    refreshAll();
+  } catch (err) { $("#formError").textContent = err.message; }
+};
+$("#markAll").onclick = async () => { await api("/api/notifications/read-all", { method: "POST" }); loadAlerts(); };
+$("#unreadOnly").onchange = loadAlerts;
+
+// Live alerts: the server pushes each new alert to this page the moment it is created.
+const stream = new EventSource("/api/stream");
+stream.addEventListener("notification", ev => { toast(JSON.parse(ev.data).message); loadAlerts(); loadSummary(); });
+
+refreshAll();
+</script>
+</body>
+</html>
